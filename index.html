@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SIYL — Development Estimation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Young+Serif&family=PT+Mono&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            serif: ['Young Serif', 'Georgia', 'serif'],
+            mono: ['PT Mono', 'monospace'],
+          },
+          colors: {
+            cream:  '#FAF8F4',
+            stone:  '#EDE8E0',
+            ink:    '#1C1A18',
+            muted:  '#7A736A',
+            border: '#DDD8CE',
+            red:    '#D93025',
+            sand:   '#C8BFB0',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    [v-cloak] { display: none; }
+    body { background: #FAF8F4; color: #1C1A18; }
+    .fade { animation: fadeUp .35s ease both; }
+    @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:translateY(0); } }
+    .bar { transition: width 1.2s cubic-bezier(.4,0,.2,1); }
+  </style>
+</head>
+<body class="font-serif antialiased">
+
+<div id="app">
+  <div v-if="!loaded" class="flex items-center justify-center min-h-screen text-muted font-mono text-sm">Loading…</div>
+
+  <div v-else v-cloak>
+
+    <!-- NAV -->
+    <nav class="sticky top-0 z-50 bg-cream border-b border-border px-6 py-4 flex items-center justify-between">
+      <span class="font-mono text-xs uppercase tracking-widest text-muted">SIYL — Development Estimate</span>
+      <div class="flex gap-1">
+        <button v-for="phase in d.phases" :key="phase.id"
+          class="font-mono text-xs px-3 py-1.5 rounded transition-all"
+          :class="activePhase === phase.id ? 'bg-ink text-cream' : 'text-muted hover:text-ink hover:bg-stone'"
+          @click="activePhase = phase.id; scrollToPhase()">
+          {{ phase.name }}
+        </button>
+      </div>
+    </nav>
+
+    <!-- HERO -->
+    <header class="px-6 sm:px-12 pt-20 pb-16 border-b border-border max-w-6xl mx-auto">
+      <p class="font-mono text-xs uppercase tracking-widest text-muted mb-6">{{ d.project.date }} · Prepared for {{ d.project.client }}</p>
+      <h1 class="text-6xl sm:text-8xl leading-none mb-5">{{ d.project.name }}</h1>
+      <p class="text-2xl text-muted max-w-2xl leading-snug">{{ d.project.tagline }}</p>
+      <p class="mt-6 text-base text-muted max-w-2xl leading-relaxed">{{ d.project.description }}</p>
+      <div class="mt-5 inline-flex items-center gap-2 bg-stone border border-border rounded-full px-4 py-1.5">
+        <span class="w-2 h-2 rounded-full bg-red shrink-0"></span>
+        <span class="font-mono text-xs text-muted">{{ d.project.geo }}</span>
+      </div>
+      <div class="mt-5 flex flex-wrap gap-2">
+        <span v-for="tech in d.project.stack" :key="tech"
+          class="font-mono text-xs border border-border px-3 py-1 rounded-full text-muted">{{ tech }}</span>
+      </div>
+    </header>
+
+    <!-- OVERVIEW -->
+    <section class="px-6 sm:px-12 py-16 border-b border-border max-w-6xl mx-auto">
+      <p class="font-mono text-xs uppercase tracking-widest text-muted mb-10">Total Estimate</p>
+
+      <!-- Total + phase cards -->
+      <div class="grid grid-cols-1 sm:grid-cols-4 gap-6 mb-12">
+        <div class="sm:col-span-1 flex flex-col justify-center">
+          <div class="text-7xl font-serif leading-none text-red">{{ d.summary.totalHours }}</div>
+          <div class="font-mono text-xs text-muted mt-2 uppercase tracking-widest">Total Hours</div>
+          <div class="font-mono text-sm text-muted mt-1">{{ d.summary.totalDays }} days × 8h · 1 developer</div>
+        </div>
+        <div v-for="phase in d.phases" :key="phase.id"
+          class="border rounded-2xl p-6 cursor-pointer transition-all hover:shadow-sm"
+          :class="activePhase === phase.id ? 'bg-ink text-cream border-ink' : 'bg-cream border-border hover:border-sand'"
+          @click="activePhase = phase.id; scrollToPhase()">
+          <div class="font-mono text-xs uppercase tracking-widest mb-3"
+            :class="activePhase === phase.id ? 'text-sand' : 'text-muted'">{{ phase.name }}</div>
+          <div class="text-4xl font-serif leading-none mb-1"
+            :class="activePhase === phase.id ? 'text-cream' : 'text-ink'">{{ phase.totalHours }}h</div>
+          <div class="font-mono text-xs mt-2 leading-snug"
+            :class="activePhase === phase.id ? 'text-sand' : 'text-muted'">{{ phase.label }}</div>
+        </div>
+      </div>
+
+      <!-- Category breakdown (Phase 1) -->
+      <div class="mb-10">
+        <p class="font-mono text-xs uppercase tracking-widest text-muted mb-6">Phase 1 — Hours by Work Type</p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div v-for="cat in d.summary.hoursBreakdown" :key="cat.label" class="bg-stone rounded-xl p-5">
+            <div class="flex items-center justify-between mb-3">
+              <span class="text-sm leading-tight">{{ cat.label }}</span>
+              <span class="font-mono text-sm font-bold text-red">{{ cat.hours }}h</span>
+            </div>
+            <div class="bg-border rounded-full h-1.5 overflow-hidden mb-3">
+              <div class="h-1.5 rounded-full bar bg-red" :style="{ width: pct(cat.hours, d.phases[0].totalHours) + '%' }"></div>
+            </div>
+            <p class="font-mono text-xs text-muted leading-snug">{{ cat.plain }}</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Timeline helper — 1 dev only -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="border border-border rounded-xl p-5 text-center">
+          <div class="text-3xl font-serif mb-1">~9–10 weeks</div>
+          <div class="font-mono text-xs text-muted uppercase tracking-wider">Full time · 5 days/week · 1 developer</div>
+        </div>
+        <div class="bg-ink text-cream rounded-xl p-5 text-center">
+          <div class="text-3xl font-serif mb-1">~14–16 weeks</div>
+          <div class="font-mono text-xs text-sand uppercase tracking-wider">Part time · 3 days/week · 1 developer</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- OUT OF SCOPE -->
+    <section class="px-6 sm:px-12 py-12 border-b border-border max-w-6xl mx-auto">
+      <p class="font-mono text-xs uppercase tracking-widest text-muted mb-3">What Is Not Included</p>
+      <p class="text-muted text-sm max-w-2xl mb-6 leading-relaxed">The items below are outside the scope of this estimate. They may require separate specialists or budgets.</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div v-for="(item, i) in d.summary.outOfScope" :key="i"
+          class="flex gap-3 border border-border rounded-xl px-5 py-3.5">
+          <span class="font-mono text-xs text-sand mt-0.5 shrink-0">—</span>
+          <span class="text-sm text-muted leading-snug">{{ item }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- EXTERNAL APIS -->
+    <section class="px-6 sm:px-12 py-16 border-b border-border max-w-6xl mx-auto">
+      <p class="font-mono text-xs uppercase tracking-widest text-muted mb-3">{{ d.externalApis.title }}</p>
+      <p class="text-muted text-sm max-w-2xl mb-8 leading-relaxed">{{ d.externalApis.note }}</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div v-for="api in d.externalApis.items" :key="api.service"
+          class="bg-stone rounded-xl p-5">
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div>
+              <span class="font-mono text-xs uppercase tracking-widest text-red">{{ api.category }}</span>
+              <div class="text-base mt-0.5">{{ api.service }}</div>
+            </div>
+            <span class="font-mono text-xs bg-ink text-cream px-2 py-0.5 rounded shrink-0">Phase {{ api.phase }}</span>
+          </div>
+          <p class="font-mono text-xs text-muted leading-relaxed">{{ api.use }}</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- PHASE DETAIL -->
+    <section id="phase-detail" class="px-6 sm:px-12 py-16 border-b border-border max-w-6xl mx-auto">
+      <div v-for="phase in d.phases" :key="'ph'+phase.id" v-show="activePhase === phase.id" class="fade">
+
+        <!-- Phase header -->
+        <div class="flex flex-col sm:flex-row sm:items-end justify-between gap-6 mb-12 pb-8 border-b border-border">
+          <div>
+            <p class="font-mono text-xs uppercase tracking-widest text-muted mb-3">{{ phase.name }}</p>
+            <h2 class="text-4xl sm:text-5xl leading-tight mb-4">{{ phase.label }}</h2>
+            <p class="text-lg text-muted max-w-2xl leading-relaxed">{{ phase.description }}</p>
+          </div>
+          <div class="shrink-0 text-right">
+            <div class="text-6xl font-serif text-red leading-none">{{ phase.totalHours }}h</div>
+            <div class="font-mono text-xs text-muted mt-1">~{{ Math.round(phase.totalHours / 8) }} working days</div>
+          </div>
+        </div>
+
+        <!-- What you get -->
+        <div class="mb-12">
+          <p class="font-mono text-xs uppercase tracking-widest text-muted mb-6">What You Get</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-for="(item, i) in phase.whatYouGet" :key="i" class="flex gap-3 bg-stone rounded-xl p-4">
+              <span class="text-red font-mono text-xs mt-0.5 shrink-0">{{ String(i+1).padStart(2,'0') }}</span>
+              <span class="text-sm leading-snug">{{ item }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Out of scope for phase 3 -->
+        <div v-if="phase.outOfScope" class="mb-12">
+          <p class="font-mono text-xs uppercase tracking-widest text-muted mb-3">Not Part of This Phase</p>
+          <p class="text-muted text-sm mb-5 leading-relaxed">These items are acknowledged but outside the scope of this estimate. Each would be a separate project.</p>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div v-for="(item, i) in phase.outOfScope" :key="i"
+              class="flex gap-3 border border-border rounded-xl px-5 py-3.5">
+              <span class="font-mono text-xs text-sand mt-0.5 shrink-0">—</span>
+              <span class="text-sm text-muted leading-snug">{{ item }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Breakdown bars -->
+        <div class="mb-12 bg-stone rounded-2xl p-6">
+          <p class="font-mono text-xs uppercase tracking-widest text-muted mb-6">Hours Breakdown</p>
+          <div class="space-y-4">
+            <div v-for="cat in phase.breakdown" :key="'bc'+cat.label">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-sm">{{ cat.label }}</span>
+                <span class="font-mono text-sm text-red">{{ cat.hours }}h</span>
+              </div>
+              <div class="bg-border rounded-full h-1.5 overflow-hidden">
+                <div class="h-1.5 rounded-full bar bg-ink" :style="{ width: pct(cat.hours, phase.totalHours) + '%' }"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Task tables -->
+        <div>
+          <p class="font-mono text-xs uppercase tracking-widest text-muted mb-8">Detailed Tasks</p>
+          <div v-for="area in phase.areas" :key="area.name" class="mb-10">
+            <div class="flex items-center justify-between mb-4">
+              <div>
+                <h3 class="text-xl">{{ area.name }}</h3>
+                <p class="font-mono text-xs text-muted mt-0.5">{{ area.plainName }}</p>
+              </div>
+              <span class="font-mono text-sm bg-ink text-cream px-4 py-1.5 rounded-full">{{ area.hours }}h</span>
+            </div>
+            <div class="border border-border rounded-2xl overflow-hidden">
+              <table class="w-full">
+                <tbody>
+                  <tr v-for="(item, i) in area.items" :key="i"
+                    class="border-b border-border last:border-0 hover:bg-stone transition-colors">
+                    <td class="px-5 py-3.5 font-mono text-xs text-muted w-8">{{ String(i+1).padStart(2,'0') }}</td>
+                    <td class="px-2 py-3.5 text-sm leading-snug">{{ item.task }}</td>
+                    <td class="px-5 py-3.5 text-right font-mono text-sm text-red font-bold whitespace-nowrap">{{ item.hours }}h</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="bg-ink">
+                    <td class="px-5 py-3 font-mono text-xs text-sand uppercase tracking-widest" colspan="2">Subtotal</td>
+                    <td class="px-5 py-3 text-right font-mono text-sm text-cream font-bold">{{ area.hours }}h</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RUNNING COSTS — 3 columns -->
+    <section class="px-6 sm:px-12 py-16 border-b border-border max-w-6xl mx-auto">
+      <p class="font-mono text-xs uppercase tracking-widest text-muted mb-3">Monthly Running Costs</p>
+      <p class="text-muted text-base max-w-2xl mb-10 leading-relaxed">{{ d.thirdPartyCosts.note }}</p>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+        <!-- Vercel -->
+        <div class="border border-border rounded-2xl overflow-hidden flex flex-col">
+          <div class="bg-ink text-cream px-6 py-5">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <h3 class="text-xl">{{ d.thirdPartyCosts.vercel.label }}</h3>
+              <span class="font-mono text-xs bg-red text-cream px-2 py-0.5 rounded shrink-0">{{ d.thirdPartyCosts.vercel.tag }}</span>
+            </div>
+            <p class="font-mono text-xs text-sand mt-2 leading-relaxed">{{ d.thirdPartyCosts.vercel.description }}</p>
+            <p class="font-mono text-xs text-sand/70 mt-2 leading-relaxed border-t border-sand/20 pt-2">{{ d.thirdPartyCosts.vercel.freeTier }}</p>
+          </div>
+          <table class="w-full flex-1">
+            <tbody>
+              <tr v-for="(c, i) in d.thirdPartyCosts.vercel.costs" :key="i"
+                class="border-b border-border last:border-0 hover:bg-stone transition-colors">
+                <td class="px-4 py-3">
+                  <div class="text-sm">{{ c.service }}</div>
+                  <div class="font-mono text-xs text-muted mt-0.5">{{ c.notes }}</div>
+                </td>
+                <td class="px-4 py-3 text-right font-mono text-sm text-red font-bold whitespace-nowrap align-top">{{ c.monthly }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="bg-stone px-5 py-4 border-t border-border space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Estimated monthly</span>
+              <span class="font-mono text-base font-bold text-red">{{ d.thirdPartyCosts.vercel.totalRange }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="font-mono text-xs text-muted">At scale</span>
+              <span class="font-mono text-xs text-muted">{{ d.thirdPartyCosts.vercel.atScale }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cloudflare -->
+        <div class="border border-border rounded-2xl overflow-hidden flex flex-col">
+          <div class="bg-ink text-cream px-6 py-5">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <h3 class="text-xl">{{ d.thirdPartyCosts.cloudflare.label }}</h3>
+              <span class="font-mono text-xs bg-red text-cream px-2 py-0.5 rounded shrink-0">{{ d.thirdPartyCosts.cloudflare.tag }}</span>
+            </div>
+            <p class="font-mono text-xs text-sand mt-2 leading-relaxed">{{ d.thirdPartyCosts.cloudflare.description }}</p>
+            <p class="font-mono text-xs text-sand/70 mt-2 leading-relaxed border-t border-sand/20 pt-2">{{ d.thirdPartyCosts.cloudflare.freeTier }}</p>
+          </div>
+          <table class="w-full flex-1">
+            <tbody>
+              <tr v-for="(c, i) in d.thirdPartyCosts.cloudflare.costs" :key="i"
+                class="border-b border-border last:border-0 hover:bg-stone transition-colors">
+                <td class="px-4 py-3">
+                  <div class="text-sm">{{ c.service }}</div>
+                  <div class="font-mono text-xs text-muted mt-0.5">{{ c.notes }}</div>
+                </td>
+                <td class="px-4 py-3 text-right font-mono text-sm text-red font-bold whitespace-nowrap align-top">{{ c.monthly }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="bg-stone px-5 py-4 border-t border-border space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Estimated monthly</span>
+              <span class="font-mono text-base font-bold text-red">{{ d.thirdPartyCosts.cloudflare.totalRange }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="font-mono text-xs text-muted">At scale</span>
+              <span class="font-mono text-xs text-muted">{{ d.thirdPartyCosts.cloudflare.atScale }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- AWS -->
+        <div class="border border-border rounded-2xl overflow-hidden flex flex-col">
+          <div class="bg-stone px-6 py-5 border-b border-border">
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <h3 class="text-xl">{{ d.thirdPartyCosts.aws.label }}</h3>
+              <span class="font-mono text-xs border border-border text-muted px-2 py-0.5 rounded shrink-0">{{ d.thirdPartyCosts.aws.tag }}</span>
+            </div>
+            <p class="font-mono text-xs text-muted mt-2 leading-relaxed">{{ d.thirdPartyCosts.aws.description }}</p>
+            <p class="font-mono text-xs text-muted/70 mt-2 leading-relaxed border-t border-border pt-2">{{ d.thirdPartyCosts.aws.freeTier }}</p>
+          </div>
+          <table class="w-full flex-1">
+            <tbody>
+              <tr v-for="(c, i) in d.thirdPartyCosts.aws.costs" :key="i"
+                class="border-b border-border last:border-0 hover:bg-stone transition-colors">
+                <td class="px-4 py-3">
+                  <div class="text-sm">{{ c.service }}</div>
+                  <div class="font-mono text-xs text-muted mt-0.5">{{ c.notes }}</div>
+                </td>
+                <td class="px-4 py-3 text-right font-mono text-sm text-ink font-bold whitespace-nowrap align-top">{{ c.monthly }}</td>
+              </tr>
+            </tbody>
+          </table>
+          <div class="bg-stone px-5 py-4 border-t border-border space-y-1">
+            <div class="flex justify-between items-center">
+              <span class="text-sm">Estimated monthly</span>
+              <span class="font-mono text-base font-bold text-ink">{{ d.thirdPartyCosts.aws.totalRange }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+              <span class="font-mono text-xs text-muted">At scale</span>
+              <span class="font-mono text-xs text-muted">{{ d.thirdPartyCosts.aws.atScale }}</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- NOTES -->
+    <section class="px-6 sm:px-12 py-16 max-w-6xl mx-auto">
+      <p class="font-mono text-xs uppercase tracking-widest text-muted mb-8">Important Notes</p>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div v-for="(note, i) in d.notes" :key="i" class="flex gap-4 bg-stone rounded-xl p-5">
+          <span class="font-mono text-xs text-red mt-0.5 shrink-0">{{ String(i+1).padStart(2,'0') }}</span>
+          <p class="text-sm leading-relaxed">{{ note }}</p>
+        </div>
+      </div>
+      <div class="mt-12 pt-8 border-t border-border flex flex-col sm:flex-row justify-between items-start gap-4">
+        <div>
+          <p class="font-serif text-2xl">{{ d.project.name }}</p>
+          <p class="font-mono text-xs text-muted mt-1">Development Estimation · {{ d.project.date }}</p>
+        </div>
+        <div class="text-right">
+          <p class="font-mono text-xs text-muted">Prepared for</p>
+          <p class="text-sm">{{ d.project.client }}</p>
+          <p class="font-mono text-xs text-muted">{{ d.project.contact }}</p>
+        </div>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script>
+const { createApp } = Vue;
+createApp({
+  data() { return { d: null, loaded: false, activePhase: 1 }; },
+  async mounted() {
+    const res = await fetch('./estimation.json');
+    this.d = await res.json();
+    this.loaded = true;
+  },
+  methods: {
+    pct(v, t) { return Math.round(v / t * 100); },
+    scrollToPhase() {
+      setTimeout(() => {
+        const el = document.getElementById('phase-detail');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 50);
+    }
+  }
+}).mount('#app');
+</script>
+</body>
+</html>
